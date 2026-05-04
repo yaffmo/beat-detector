@@ -172,7 +172,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.2</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.3</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -227,7 +227,7 @@
 
   <script>
   // ── State ──
-  const MIC_TIMEOUT = 90; // seconds
+  const MIC_TIMEOUT = 30; // seconds
 
   const S = {
     ctx: null, analyser: null, micStream: null, sourceNode: null,
@@ -448,6 +448,7 @@
         document.getElementById('bpmNum').textContent = Math.round(stable);
         pulse();
 
+        document.getElementById('bpmNum').textContent = Math.round(stable);
         document.getElementById('bpmStatus').textContent = `收集中… ${S.beatIntervals.length} 拍`;
       }
       S.lastBeat = now;
@@ -486,10 +487,13 @@
             }));
             updateBpm(finalBpm);
             document.getElementById('bpmNum').textContent = Math.round(finalBpm);
-            if (!S.metroOn) startMetro();
             stopMic();
-            document.getElementById('status').textContent = `✅ 偵測完成，BPM = ${Math.round(finalBpm)}`;
-            document.getElementById('bpmStatus').textContent = '已同步 ✓';
+            document.getElementById('bpmStatus').textContent = '';
+            document.getElementById('status').textContent = `✅ 偵測完成，BPM = ${Math.round(finalBpm)}，節拍器啟動中…`;
+            setTimeout(() => {
+              startMetro();
+              document.getElementById('status').textContent = `節拍器運行中，BPM = ${Math.round(finalBpm)}`;
+            }, 800);
           } else {
             stopMic();
             document.getElementById('status').textContent = '❌ 偵測不到節拍，請再試一次';
