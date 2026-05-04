@@ -196,6 +196,43 @@
     }
     .info-row span b { color: var(--text); }
 
+    /* ── BPM fine-tune ── */
+    .bpm-fine {
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .bpm-fine button {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid #333;
+      font-size: 1.1rem;
+      padding: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .bpm-fine button:hover:not(:disabled) { background: #2c2c3a; }
+
+    /* ── Auto-sync toggle ── */
+    .sync-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .9rem;
+    }
+    .sync-row label { font-size: .88rem; color: var(--muted); }
+    .toggle {
+      position: relative; width: 44px; height: 24px;
+      background: var(--surface2); border-radius: 12px;
+      cursor: pointer; transition: background .2s;
+      border: 1px solid #444;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle::after {
+      content: ''; position: absolute;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; top: 2px; left: 2px;
+      transition: transform .2s;
+    }
+    .toggle.on::after { transform: translateX(20px); }
+
     /* ── Tap tempo ── */
     #tapBtn {
       width: 100%; max-width: 560px;
@@ -239,9 +276,19 @@
   <!-- Metronome controls -->
   <div class="metro-section">
     <h2>節拍器設定</h2>
+    <div class="sync-row">
+      <label>自動同步偵測 BPM</label>
+      <div class="toggle on" id="autoSyncToggle"></div>
+    </div>
     <div class="metro-row">
       <label>BPM</label>
+      <div class="bpm-fine">
+        <button id="bpmMinus">−</button>
+      </div>
       <input type="range" id="bpmSlider" min="40" max="240" value="120" step="1" />
+      <div class="bpm-fine">
+        <button id="bpmPlus">+</button>
+      </div>
       <span class="val" id="bpmSliderVal">120</span>
     </div>
     <div class="metro-row">
@@ -287,11 +334,12 @@
     metroBpm: 120,
     beats: 4,
     volume: 0.7,
+    autoSync: true,
     metroIntervalId: null,
     nextBeatTime: 0,
     currentBeat: 0,
     animFrameId: null,
-    beatHistory: [],       // timestamps of detected beats (ms)
+    beatHistory: [],
     energyHistory: [],
     beatDetectFrameId: null,
   };
@@ -495,7 +543,7 @@
         pulseBpmRing();
 
         // Auto-sync metronome
-        if (beatIntervals.length >= 3) {
+        if (state.autoSync && beatIntervals.length >= 3) {
           syncMetroToBpm(smoothBpm);
         }
       }
@@ -811,14 +859,25 @@
   // ─────────────────────────────────────────────
   // Slider bindings
   // ─────────────────────────────────────────────
+  function updateBpm(val) {
+    const bpm = Math.max(40, Math.min(240, Math.round(val)));
+    state.metroBpm = bpm;
+    document.getElementById('bpmSlider').value = bpm;
+    document.getElementById('bpmSliderVal').textContent = bpm;
+    setMetroDisplay(bpm);
+  }
+
   document.getElementById('bpmSlider').addEventListener('input', function () {
-    state.metroBpm = +this.value;
-    document.getElementById('bpmSliderVal').textContent = this.value;
-    setMetroDisplay(state.metroBpm);
-    if (state.isMetroPlaying) {
-      stopMetronome();
-      startMetronome();
-    }
+    updateBpm(+this.value);
+  });
+
+  document.getElementById('bpmMinus').addEventListener('click', () => updateBpm(state.metroBpm - 1));
+  document.getElementById('bpmPlus').addEventListener('click', () => updateBpm(state.metroBpm + 1));
+
+  document.getElementById('autoSyncToggle').addEventListener('click', function () {
+    state.autoSync = !state.autoSync;
+    this.classList.toggle('on', state.autoSync);
+    setStatus(state.autoSync ? '自動同步已開啟 — 偵測到節拍會自動更新節拍器' : '自動同步已關閉 — 請手動調整 BPM');
   });
 
   document.getElementById('beatsSlider').addEventListener('input', function () {
