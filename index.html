@@ -198,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.7</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.8</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -658,6 +658,7 @@
         document.getElementById('bpmNum').textContent = m.bpm;
         startMetro();
         document.getElementById('status').textContent = `節拍器運行中，BPM = ${m.bpm}（${m.label}）`;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
       container.appendChild(card);
     }
