@@ -198,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.2</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.3</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -500,6 +500,23 @@
     }
   }
 
+  // 規律性得分：有多少拍子間距能整除候選拍距（容差 ±6%）
+  function regularityScore(beatTimes, lagMs) {
+    if (beatTimes.length < 3) return 0;
+    let matches = 0, total = 0;
+    for (let i = 0; i < beatTimes.length - 1; i++) {
+      for (let j = i + 1; j < beatTimes.length; j++) {
+        const iv = beatTimes[j] - beatTimes[i];
+        if (iv < 150 || iv > 6000) continue;
+        const ratio = iv / lagMs;
+        const nearest = Math.round(ratio);
+        if (nearest >= 1 && Math.abs(ratio - nearest) / nearest < 0.06) matches++;
+        total++;
+      }
+    }
+    return total > 0 ? matches / total : 0;
+  }
+
   function autocorrBpm(strengths, times) {
     const n = strengths.length;
     if (n < 200) return null;
@@ -513,21 +530,30 @@
     const minLag = Math.max(1, Math.floor(fps * 60 / 220));
     const maxLag = Math.min(Math.ceil(fps * 60 / 55), n - 1);
 
-    let bestCorr = -Infinity, bestLag = minLag;
+    // 計算每個 lag 的自相關 + 規律性複合分數
+    let bestScore = -Infinity, bestLag = minLag;
     for (let lag = minLag; lag <= maxLag; lag++) {
       let sum = 0;
       for (let i = 0; i < n - lag; i++) sum += s[i] * s[i + lag];
       const corr = sum / (n - lag);
-      if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+
+      const lagMs = (lag / fps) * 1000;
+      const reg = regularityScore(S.beatTimes, lagMs);
+
+      // 複合分數：自相關 × (1 + 規律性加成)
+      const score = corr * (1 + reg * 2);
+      if (score > bestScore) { bestScore = score; bestLag = lag; }
     }
 
-    // 檢查半拍距（即雙倍 BPM）是否相關性更強，避免算到半速
+    // 檢查半拍距（雙倍 BPM）是否更強
     const halfLag = Math.round(bestLag / 2);
     if (halfLag >= minLag) {
       let halfSum = 0;
       for (let i = 0; i < n - halfLag; i++) halfSum += s[i] * s[i + halfLag];
       const halfCorr = halfSum / (n - halfLag);
-      if (halfCorr > bestCorr * 0.85) bestLag = halfLag;
+      const halfReg = regularityScore(S.beatTimes, (halfLag / fps) * 1000);
+      const halfScore = halfCorr * (1 + halfReg * 2);
+      if (halfScore > bestScore * 0.85) bestLag = halfLag;
     }
 
     let bpm = 60000 / ((bestLag / fps) * 1000);
