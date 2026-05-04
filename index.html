@@ -448,15 +448,7 @@
         document.getElementById('bpmNum').textContent = Math.round(stable);
         pulse();
 
-        if (S.beatIntervals.length >= 2) {
-          updateBpm(stable);
-          if (!S.metroOn) startMetro();
-          stopMic();
-          document.getElementById('status').textContent = '✅ 偵測完成，節拍器已同步';
-          document.getElementById('bpmStatus').textContent = '已同步 ✓';
-        } else {
-          document.getElementById('bpmStatus').textContent = `收集中…`;
-        }
+        document.getElementById('bpmStatus').textContent = `收集中… ${S.beatIntervals.length} 拍`;
       }
       S.lastBeat = now;
     }
@@ -488,11 +480,20 @@
         S.secondsLeft--;
         updateMicBtn();
         if (S.secondsLeft <= 0) {
-          const success = S.beatIntervals.length >= 2;
-          stopMic();
-          document.getElementById('status').textContent = success
-            ? '✅ 偵測完成，節拍器已同步'
-            : '❌ 偵測不到節拍，請再試一次';
+          if (S.beatIntervals.length >= 2) {
+            const finalBpm = median(S.smoothBpms.length ? S.smoothBpms : S.beatIntervals.map(iv => {
+              let b = 60000 / iv; while (b < 60) b *= 2; while (b > 200) b /= 2; return b;
+            }));
+            updateBpm(finalBpm);
+            document.getElementById('bpmNum').textContent = Math.round(finalBpm);
+            if (!S.metroOn) startMetro();
+            stopMic();
+            document.getElementById('status').textContent = `✅ 偵測完成，BPM = ${Math.round(finalBpm)}`;
+            document.getElementById('bpmStatus').textContent = '已同步 ✓';
+          } else {
+            stopMic();
+            document.getElementById('status').textContent = '❌ 偵測不到節拍，請再試一次';
+          }
         }
       }, 1000);
 
