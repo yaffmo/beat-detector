@@ -198,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.0</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.1</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -579,22 +579,22 @@
         S.secondsLeft--;
         updateMicBtn();
         if (S.secondsLeft <= 0) {
-          const bpm1 = S.beatTimes.length >= 3 ? computeBestBpm(S.beatTimes) : null;
-          const bpm2 = autocorrBpm(S.onsetStrengths, S.onsetTimes);
-          const bpm3 = (() => {
-            if (S.beatIntervals.length < 2) return null;
-            let b = 60000 / median(S.beatIntervals);
-            while (b < 60) b *= 2; while (b > 200) b /= 2;
-            return Math.round(b);
-          })();
+          const finalBpm = autocorrBpm(S.onsetStrengths, S.onsetTimes)
+                        || (S.beatTimes.length >= 3 ? computeBestBpm(S.beatTimes) : null);
 
           stopMic();
           document.getElementById('bpmStatus').textContent = '';
 
-          if (!bpm1 && !bpm2 && !bpm3) {
+          if (!finalBpm) {
             document.getElementById('status').textContent = '❌ 偵測不到節拍，請再試一次';
           } else {
-            showResults(bpm1, bpm2, bpm3);
+            updateBpm(finalBpm);
+            document.getElementById('bpmNum').textContent = finalBpm;
+            document.getElementById('status').textContent = `✅ 偵測完成，BPM = ${finalBpm}，節拍器啟動中…`;
+            setTimeout(() => {
+              startMetro();
+              document.getElementById('status').textContent = `節拍器運行中，BPM = ${finalBpm}`;
+            }, 800);
           }
         }
       }, 1000);
