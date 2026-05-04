@@ -172,7 +172,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.3</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.4</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -235,6 +235,7 @@
     bpm: 120, beats: 4, vol: 0.7,
     metroTimer: null, nextBeat: 0, beatCount: 0,
     energyHist: [], beatIntervals: [], smoothBpms: [],
+    beatTimes: [],
     rafId: null, lastBeat: 0,
     countdownTimer: null, secondsLeft: MIC_TIMEOUT,
   };
@@ -451,8 +452,33 @@
         document.getElementById('bpmNum').textContent = Math.round(stable);
         document.getElementById('bpmStatus').textContent = `收集中… ${S.beatIntervals.length} 拍`;
       }
+      S.beatTimes.push(now);
       S.lastBeat = now;
     }
+  }
+
+  function computeBestBpm(times) {
+    if (times.length < 3) return null;
+    const votes = {};
+    for (let i = 0; i < times.length; i++) {
+      for (let j = i + 1; j < times.length; j++) {
+        const iv = times[j] - times[i];
+        if (iv < 200 || iv > 3000) continue;
+        let bpm = 60000 / iv;
+        while (bpm < 60)  bpm *= 2;
+        while (bpm > 200) bpm /= 2;
+        const k = Math.round(bpm);
+        votes[k] = (votes[k] || 0) + 1;
+      }
+    }
+    const keys = Object.keys(votes).map(Number).sort((a, b) => a - b);
+    let best = 120, bestScore = 0;
+    for (const k of keys) {
+      let score = 0;
+      for (let d = -2; d <= 2; d++) score += votes[k + d] || 0;
+      if (score > bestScore) { bestScore = score; best = k; }
+    }
+    return best;
   }
 
   // ── Mic ──
@@ -468,7 +494,7 @@
       S.analyser = an; S.sourceNode = src; S.listening = true;
 
       S.energyHist.length = 0; S.beatIntervals.length = 0;
-      S.smoothBpms.length = 0; S.lastBeat = 0;
+      S.smoothBpms.length = 0; S.beatTimes.length = 0; S.lastBeat = 0;
       prevBuf = null; fluxHist.length = 0;
 
       document.getElementById('micBtn').classList.add('active');
@@ -481,10 +507,8 @@
         S.secondsLeft--;
         updateMicBtn();
         if (S.secondsLeft <= 0) {
-          if (S.beatIntervals.length >= 2) {
-            const finalBpm = median(S.smoothBpms.length ? S.smoothBpms : S.beatIntervals.map(iv => {
-              let b = 60000 / iv; while (b < 60) b *= 2; while (b > 200) b /= 2; return b;
-            }));
+          if (S.beatTimes.length >= 3) {
+            const finalBpm = computeBestBpm(S.beatTimes);
             updateBpm(finalBpm);
             document.getElementById('bpmNum').textContent = Math.round(finalBpm);
             stopMic();
@@ -496,7 +520,7 @@
             }, 800);
           } else {
             stopMic();
-            document.getElementById('status').textContent = '❌ 偵測不到節拍，請再試一次';
+            document.getElementById('status').textContent = `❌ 偵測不到節拍（${S.beatTimes.length} 拍），請再試一次`;
           }
         }
       }, 1000);
