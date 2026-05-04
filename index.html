@@ -422,6 +422,8 @@
         if (S.autoSync && S.beatIntervals.length >= 2) {
           updateBpm(smooth);
           document.getElementById('bpmStatus').textContent = '已同步 ✓';
+          // 自動啟動節拍器
+          if (!S.metroOn) startMetro();
         } else if (S.autoSync) {
           document.getElementById('bpmStatus').textContent = `收集中 ${S.beatIntervals.length}/2`;
         }
