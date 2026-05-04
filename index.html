@@ -384,7 +384,13 @@
   }
 
   // ── Beat detection ──
-  const HIST = 43, THRESH = 1.4, MIN_IV = 260;
+  const HIST = 43, THRESH = 1.55, MIN_IV = 300;
+
+  function median(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
 
   function detect(analyser) {
     const buf = new Uint8Array(analyser.frequencyBinCount);
@@ -392,8 +398,9 @@
 
     const sr = S.ctx.sampleRate;
     const binHz = sr / (buf.length * 2);
-    const lo = Math.floor(20 / binHz);
-    const hi = Math.min(Math.floor(200 / binHz), buf.length - 1);
+    // 60–150Hz：踢鼓主體，遠離人聲頻段
+    const lo = Math.floor(60 / binHz);
+    const hi = Math.min(Math.floor(150 / binHz), buf.length - 1);
 
     let e = 0;
     for (let i = lo; i <= hi; i++) e += buf[i] * buf[i];
@@ -404,31 +411,37 @@
     const avg = S.energyHist.reduce((a, b) => a + b, 0) / S.energyHist.length;
 
     const now = performance.now();
-    if (e > THRESH * avg && e > 500 && now - S.lastBeat > MIN_IV) {
+    if (e > THRESH * avg && e > 800 && now - S.lastBeat > MIN_IV) {
       const iv = now - S.lastBeat;
       if (S.lastBeat > 0 && iv < 2000) {
         S.beatIntervals.push(iv);
-        if (S.beatIntervals.length > 8) S.beatIntervals.shift();
+        if (S.beatIntervals.length > 12) S.beatIntervals.shift();
 
-        const avgIv = S.beatIntervals.reduce((a, b) => a + b, 0) / S.beatIntervals.length;
-        let bpm = 60000 / avgIv;
+        // 用中位數取代平均，減少異常值影響
+        const medIv = median(S.beatIntervals);
+        let bpm = 60000 / medIv;
         while (bpm < 60) bpm *= 2;
         while (bpm > 200) bpm /= 2;
 
-        S.smoothBpms.push(bpm);
-        if (S.smoothBpms.length > 4) S.smoothBpms.shift();
-        const smooth = S.smoothBpms.reduce((a, b) => a + b, 0) / S.smoothBpms.length;
+        // 穩定鎖定：與目前 BPM 相差超過 10% 才允許更新
+        const diff = Math.abs(bpm - S.bpm) / S.bpm;
+        if (S.beatIntervals.length < 3 || diff < 0.10) {
+          S.smoothBpms.push(bpm);
+          if (S.smoothBpms.length > 6) S.smoothBpms.shift();
+        }
 
-        document.getElementById('bpmNum').textContent = Math.round(smooth);
+        if (S.smoothBpms.length === 0) return;
+        const stable = median(S.smoothBpms);
+
+        document.getElementById('bpmNum').textContent = Math.round(stable);
         pulse();
 
-        if (S.autoSync && S.beatIntervals.length >= 2) {
-          updateBpm(smooth);
+        if (S.autoSync && S.beatIntervals.length >= 3) {
+          updateBpm(stable);
           document.getElementById('bpmStatus').textContent = '已同步 ✓';
-          // 自動啟動節拍器
           if (!S.metroOn) startMetro();
         } else if (S.autoSync) {
-          document.getElementById('bpmStatus').textContent = `收集中 ${S.beatIntervals.length}/2`;
+          document.getElementById('bpmStatus').textContent = `收集中 ${S.beatIntervals.length}/3`;
         }
       }
       S.lastBeat = now;
