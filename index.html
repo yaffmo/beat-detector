@@ -198,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.3</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.4</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -447,14 +447,24 @@
     for (let i = kickLo;  i <= kickHi;  i++) flux += Math.max(0, buf[i] - prevBuf[i]);
     for (let i = snareLo; i <= snareHi; i++) flux += Math.max(0, buf[i] - prevBuf[i]);
 
-    // 能量銓重：鼓聲頻段的 RMS 能量
-    let energy = 0, energyCount = 0;
-    for (let i = kickLo;  i <= kickHi;  i++) { energy += buf[i] * buf[i]; energyCount++; }
-    for (let i = snareLo; i <= snareHi; i++) { energy += buf[i] * buf[i]; energyCount++; }
-    const rms = Math.sqrt(energy / energyCount);
+    // 鼓聲能量（40–120Hz kick 核心）
+    const subLo = Math.floor(40 / binHz);
+    const subHi = Math.floor(120 / binHz);
+    let drumEnergy = 0;
+    for (let i = subLo; i <= subHi; i++) drumEnergy += buf[i] * buf[i];
+    const drumRms = Math.sqrt(drumEnergy / (subHi - subLo + 1));
 
-    // 加權 onset = flux × RMS（鼓聲兩者都強，雜音兩者都弱）
-    const weightedFlux = flux * rms;
+    // 人聲頻段能量（300Hz–3kHz）— 用來抑制人聲
+    const vocLo = Math.floor(300  / binHz);
+    const vocHi = Math.min(Math.floor(3000 / binHz), buf.length - 1);
+    let vocEnergy = 0;
+    for (let i = vocLo; i <= vocHi; i++) vocEnergy += buf[i] * buf[i];
+    const vocRms = Math.sqrt(vocEnergy / (vocHi - vocLo + 1));
+
+    // 加權 onset = flux × drumRms² / (vocRms + 1)
+    // 鼓：drumRms 高、vocRms 低 → 高權重
+    // 人聲：drumRms 低、vocRms 高 → 極低權重
+    const weightedFlux = flux * (drumRms * drumRms) / (vocRms + 1);
 
     prevBuf.set(buf);
 
@@ -500,22 +510,6 @@
     }
   }
 
-  // 規律性得分：有多少拍子間距能整除候選拍距（容差 ±6%）
-  function regularityScore(beatTimes, lagMs) {
-    if (beatTimes.length < 3) return 0;
-    let matches = 0, total = 0;
-    for (let i = 0; i < beatTimes.length - 1; i++) {
-      for (let j = i + 1; j < beatTimes.length; j++) {
-        const iv = beatTimes[j] - beatTimes[i];
-        if (iv < 150 || iv > 6000) continue;
-        const ratio = iv / lagMs;
-        const nearest = Math.round(ratio);
-        if (nearest >= 1 && Math.abs(ratio - nearest) / nearest < 0.06) matches++;
-        total++;
-      }
-    }
-    return total > 0 ? matches / total : 0;
-  }
 
   function autocorrBpm(strengths, times) {
     const n = strengths.length;
@@ -537,12 +531,7 @@
       for (let i = 0; i < n - lag; i++) sum += s[i] * s[i + lag];
       const corr = sum / (n - lag);
 
-      const lagMs = (lag / fps) * 1000;
-      const reg = regularityScore(S.beatTimes, lagMs);
-
-      // 複合分數：自相關 × (1 + 規律性加成)
-      const score = corr * (1 + reg * 2);
-      if (score > bestScore) { bestScore = score; bestLag = lag; }
+      if (corr > bestScore) { bestScore = corr; bestLag = lag; }
     }
 
     // 檢查半拍距（雙倍 BPM）是否更強
@@ -551,9 +540,7 @@
       let halfSum = 0;
       for (let i = 0; i < n - halfLag; i++) halfSum += s[i] * s[i + halfLag];
       const halfCorr = halfSum / (n - halfLag);
-      const halfReg = regularityScore(S.beatTimes, (halfLag / fps) * 1000);
-      const halfScore = halfCorr * (1 + halfReg * 2);
-      if (halfScore > bestScore * 0.85) bestLag = halfLag;
+      if (halfCorr > bestScore * 0.85) bestLag = halfLag;
     }
 
     let bpm = 60000 / ((bestLag / fps) * 1000);
