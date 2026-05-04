@@ -198,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.9</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.0</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -652,25 +652,50 @@
         </div>
         <button class="result-pick">使用</button>
       `;
-      card.querySelector('button').addEventListener('click', () => {
-        // 標記選中，其他變暗
-        container.querySelectorAll('.result-card').forEach(c => {
-          c.style.opacity = '0.35';
-          c.style.borderColor = 'transparent';
-        });
-        card.style.opacity = '1';
-        card.style.borderColor = 'var(--accent)';
-        card.querySelector('button').textContent = '✓ 已選';
-
-        updateBpm(m.bpm);
-        document.getElementById('bpmNum').textContent = m.bpm;
-        if (S.metroOn) stopMetro();
-        startMetro();
-        document.getElementById('status').textContent = `節拍器運行中，BPM = ${m.bpm}（${m.label}）`;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
+      card.querySelector('button').addEventListener('click', () => selectBpm(container, card, m.bpm, m.label));
       container.appendChild(card);
     }
+
+    // 手動輸入卡片
+    const manualCard = document.createElement('div');
+    manualCard.className = 'result-card';
+    manualCard.innerHTML = `
+      <div class="result-info">
+        <span class="result-method">手動輸入</span>
+        <div style="display:flex;align-items:center;gap:.5rem;margin-top:.25rem">
+          <input id="manualBpm" type="number" min="40" max="240" placeholder="BPM"
+            style="width:80px;padding:.4rem .6rem;border-radius:8px;border:1px solid #444;
+                   background:var(--surface2);color:var(--text);font-size:1.1rem;font-weight:700" />
+        </div>
+      </div>
+      <button class="result-pick">使用</button>
+    `;
+    manualCard.querySelector('button').addEventListener('click', () => {
+      const val = parseInt(document.getElementById('manualBpm').value);
+      if (!val || val < 40 || val > 240) {
+        document.getElementById('manualBpm').style.borderColor = 'var(--accent2)';
+        return;
+      }
+      selectBpm(container, manualCard, val, '手動輸入');
+    });
+    container.appendChild(manualCard);
+  }
+
+  function selectBpm(container, selectedCard, bpm, label) {
+    container.querySelectorAll('.result-card').forEach(c => {
+      c.style.opacity = '0.35';
+      c.style.borderColor = 'transparent';
+    });
+    selectedCard.style.opacity = '1';
+    selectedCard.style.borderColor = 'var(--accent)';
+    selectedCard.querySelector('button').textContent = '✓ 已選';
+
+    updateBpm(bpm);
+    document.getElementById('bpmNum').textContent = bpm;
+    if (S.metroOn) stopMetro();
+    startMetro();
+    document.getElementById('status').textContent = `節拍器運行中，BPM = ${bpm}（${label}）`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // ── Events ──
