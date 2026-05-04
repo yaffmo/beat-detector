@@ -539,12 +539,15 @@
 
         state.detectedBpm = smoothBpm;
         setBpmDisplay(smoothBpm);
-        setConfidence(`${beatIntervals.length} 拍樣本`);
         pulseBpmRing();
 
-        // Auto-sync metronome
-        if (state.autoSync && beatIntervals.length >= 3) {
+        if (state.autoSync && beatIntervals.length >= 2) {
           syncMetroToBpm(smoothBpm);
+          setConfidence(`已同步 ✓`);
+        } else if (state.autoSync) {
+          setConfidence(`收集中… ${beatIntervals.length}/2`);
+        } else {
+          setConfidence(`偵測: ${Math.round(smoothBpm)} BPM`);
         }
       }
       lastBeatTime = now;
