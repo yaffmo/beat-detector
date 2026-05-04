@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>節拍偵測器 Beat Detector</title>
+  <title>節拍偵測器</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -15,7 +15,7 @@
       --accent2: #ff6584;
       --text: #e8e8f0;
       --muted: #6b6b80;
-      --beat-glow: rgba(108,99,255,0.6);
+      --glow: rgba(108,99,255,0.55);
     }
 
     body {
@@ -26,916 +26,495 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 2rem 1rem 4rem;
+      padding: 2.5rem 1.25rem 4rem;
+      gap: 1.5rem;
     }
 
     h1 {
-      font-size: 1.6rem;
+      font-size: 1.5rem;
       font-weight: 700;
-      letter-spacing: .05em;
-      margin-bottom: .25rem;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      letter-spacing: .04em;
     }
-    .subtitle { color: var(--muted); font-size: .85rem; margin-bottom: 2rem; }
 
-    /* ── BPM display ── */
+    /* ── BPM ring ── */
     .bpm-ring {
       position: relative;
-      width: 220px; height: 220px;
+      width: 230px; height: 230px;
       border-radius: 50%;
       background: var(--surface);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      margin-bottom: 2rem;
       transition: box-shadow .08s ease;
-      border: 2px solid var(--surface2);
     }
     .bpm-ring.pulse {
-      box-shadow: 0 0 0 14px var(--beat-glow), 0 0 40px var(--beat-glow);
+      box-shadow: 0 0 0 16px var(--glow), 0 0 50px var(--glow);
     }
     .bpm-ring canvas {
       position: absolute; top: 0; left: 0;
-      border-radius: 50%;
-      pointer-events: none;
+      border-radius: 50%; pointer-events: none;
     }
     .bpm-number {
-      font-size: 4.5rem;
-      font-weight: 800;
-      line-height: 1;
-      letter-spacing: -.03em;
+      font-size: 5rem; font-weight: 800;
+      line-height: 1; letter-spacing: -.03em;
       font-variant-numeric: tabular-nums;
     }
     .bpm-label { color: var(--muted); font-size: .8rem; letter-spacing: .2em; margin-top: .3rem; }
-    .bpm-confidence {
-      position: absolute; bottom: 30px;
-      font-size: .72rem; color: var(--muted);
-    }
+    .bpm-status { position: absolute; bottom: 28px; font-size: .72rem; color: var(--muted); }
 
     /* ── Waveform ── */
     #waveCanvas {
-      width: 100%; max-width: 560px;
-      height: 80px;
+      width: 100%; max-width: 520px; height: 72px;
+      background: var(--surface); border-radius: 14px; display: block;
+    }
+
+    /* ── Card ── */
+    .card {
       background: var(--surface);
-      border-radius: 12px;
-      margin-bottom: 1.5rem;
-      display: block;
-    }
-
-    /* ── Controls ── */
-    .controls {
-      display: flex; gap: .75rem; flex-wrap: wrap;
-      justify-content: center;
-      margin-bottom: 1.5rem;
-      max-width: 560px; width: 100%;
-    }
-
-    button {
-      padding: .65rem 1.4rem;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-      font-size: .9rem;
-      font-weight: 600;
-      transition: transform .1s, opacity .2s, box-shadow .2s;
-    }
-    button:active { transform: scale(.96); }
-    button:disabled { opacity: .35; cursor: default; }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #9b8cff);
-      color: #fff;
-      box-shadow: 0 4px 18px rgba(108,99,255,.35);
-    }
-    .btn-primary:hover:not(:disabled) { box-shadow: 0 6px 24px rgba(108,99,255,.55); }
-
-    .btn-danger {
-      background: linear-gradient(135deg, #e84545, var(--accent2));
-      color: #fff;
-      box-shadow: 0 4px 18px rgba(232,69,69,.35);
-    }
-
-    .btn-secondary {
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid #333;
-    }
-    .btn-secondary:hover:not(:disabled) { background: #2c2c3a; }
-
-    label.file-btn {
-      padding: .65rem 1.4rem;
-      border-radius: 10px;
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid #333;
-      cursor: pointer;
-      font-size: .9rem;
-      font-weight: 600;
-      transition: background .2s;
-    }
-    label.file-btn:hover { background: #2c2c3a; }
-    #fileInput { display: none; }
-
-    /* ── Metronome section ── */
-    .metro-section {
-      background: var(--surface);
-      border-radius: 16px;
+      border-radius: 18px;
       padding: 1.25rem 1.5rem;
-      width: 100%; max-width: 560px;
-      margin-bottom: 1.5rem;
+      width: 100%; max-width: 520px;
     }
-    .metro-section h2 {
-      font-size: .85rem;
-      letter-spacing: .15em;
-      color: var(--muted);
-      text-transform: uppercase;
-      margin-bottom: 1rem;
+    .card-title {
+      font-size: .78rem; letter-spacing: .18em;
+      color: var(--muted); text-transform: uppercase;
+      margin-bottom: 1.1rem;
     }
 
-    .metro-row {
-      display: flex; align-items: center; gap: 1rem;
-      margin-bottom: .9rem;
+    /* ── Sliders ── */
+    .row {
+      display: flex; align-items: center; gap: .75rem;
+      margin-bottom: .85rem;
     }
-    .metro-row label { font-size: .88rem; color: var(--muted); min-width: 80px; }
-    .metro-row input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
-    .metro-row .val { font-size: .88rem; font-weight: 600; min-width: 48px; text-align: right; }
+    .row:last-child { margin-bottom: 0; }
+    .row label { font-size: .85rem; color: var(--muted); min-width: 44px; }
+    .row input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; height: 4px; }
+    .row .val { font-size: .88rem; font-weight: 600; min-width: 42px; text-align: right; }
 
-    .metro-beats {
-      display: flex; gap: .5rem; justify-content: center;
-      margin-top: .5rem;
+    .row .fine { display: flex; gap: .4rem; }
+    .fine button {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: var(--surface2); color: var(--text);
+      border: 1px solid #333; font-size: 1.1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
     }
-    .beat-dot {
-      width: 18px; height: 18px;
-      border-radius: 50%;
+    .fine button:hover { background: #2c2c3a; }
+    .fine button:active { transform: scale(.93); }
+
+    /* ── Beat dots ── */
+    .beat-dots {
+      display: flex; gap: .55rem; justify-content: center; margin-top: .9rem;
+    }
+    .dot {
+      width: 20px; height: 20px; border-radius: 50%;
       background: var(--surface2);
       transition: background .06s, box-shadow .06s;
     }
-    .beat-dot.active {
-      background: var(--accent);
-      box-shadow: 0 0 10px var(--beat-glow);
-    }
-    .beat-dot.accent-beat {
-      background: var(--accent2);
-      box-shadow: 0 0 10px rgba(255,101,132,.6);
-    }
-
-    /* ── Status / info ── */
-    #status {
-      font-size: .82rem;
-      color: var(--muted);
-      text-align: center;
-      margin-top: .5rem;
-      min-height: 1.2em;
-    }
-
-    .info-row {
-      display: flex; gap: 1.5rem; justify-content: center;
-      font-size: .8rem; color: var(--muted);
-      margin-bottom: 1rem;
-    }
-    .info-row span b { color: var(--text); }
-
-    /* ── BPM fine-tune ── */
-    .bpm-fine {
-      display: flex; align-items: center; gap: .5rem;
-    }
-    .bpm-fine button {
-      width: 36px; height: 36px;
-      border-radius: 8px;
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid #333;
-      font-size: 1.1rem;
-      padding: 0;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .bpm-fine button:hover:not(:disabled) { background: #2c2c3a; }
+    .dot.on { background: var(--accent); box-shadow: 0 0 12px var(--glow); }
+    .dot.on-accent { background: var(--accent2); box-shadow: 0 0 12px rgba(255,101,132,.6); }
 
     /* ── Auto-sync toggle ── */
     .sync-row {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: .9rem;
+      margin-bottom: 1rem;
     }
-    .sync-row label { font-size: .88rem; color: var(--muted); }
+    .sync-row span { font-size: .85rem; color: var(--muted); }
     .toggle {
-      position: relative; width: 44px; height: 24px;
-      background: var(--surface2); border-radius: 12px;
-      cursor: pointer; transition: background .2s;
-      border: 1px solid #444;
+      width: 46px; height: 26px; border-radius: 13px;
+      background: var(--surface2); border: 1px solid #444;
+      cursor: pointer; transition: background .2s; position: relative;
     }
     .toggle.on { background: var(--accent); }
     .toggle::after {
       content: ''; position: absolute;
-      width: 18px; height: 18px; border-radius: 50%;
-      background: #fff; top: 2px; left: 2px;
-      transition: transform .2s;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #fff; top: 2px; left: 2px; transition: transform .2s;
     }
     .toggle.on::after { transform: translateX(20px); }
 
-    /* ── Tap tempo ── */
-    #tapBtn {
-      width: 100%; max-width: 560px;
-      padding: 1rem;
-      font-size: 1rem;
-      background: var(--surface2);
-      color: var(--text);
-      border: 2px dashed #333;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 600;
-      letter-spacing: .05em;
-      margin-bottom: 1rem;
-      transition: border-color .15s, background .15s;
+    /* ── Buttons ── */
+    .btn-row {
+      display: flex; gap: .75rem; width: 100%; max-width: 520px;
     }
-    #tapBtn:hover { border-color: var(--accent); background: #1e1e2a; }
-    #tapBtn:active { transform: scale(.98); }
+    button.main {
+      flex: 1; padding: .9rem;
+      border-radius: 14px; border: none; cursor: pointer;
+      font-size: .95rem; font-weight: 700;
+      transition: opacity .15s, transform .1s, box-shadow .2s;
+    }
+    button.main:active { transform: scale(.96); }
+    button.main:disabled { opacity: .3; cursor: default; }
+
+    .btn-mic {
+      background: linear-gradient(135deg, var(--accent), #9b8cff);
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(108,99,255,.35);
+    }
+    .btn-mic:hover:not(:disabled) { box-shadow: 0 6px 24px rgba(108,99,255,.55); }
+    .btn-mic.active { background: linear-gradient(135deg, #e84545, var(--accent2)); box-shadow: 0 4px 18px rgba(232,69,69,.35); }
+
+    .btn-metro {
+      background: linear-gradient(135deg, #2a9d8f, #57cc99);
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(42,157,143,.3);
+    }
+    .btn-metro:hover:not(:disabled) { box-shadow: 0 6px 24px rgba(42,157,143,.5); }
+
+    /* ── Status ── */
+    #status {
+      font-size: .82rem; color: var(--muted);
+      text-align: center; min-height: 1.1em;
+    }
   </style>
 </head>
 <body>
+
   <h1>節拍偵測器</h1>
-  <p class="subtitle">Beat Detector &amp; Metronome</p>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
-    <canvas id="ringCanvas" width="220" height="220"></canvas>
-    <div class="bpm-number" id="bpmDisplay">--</div>
+    <canvas id="ringCanvas" width="230" height="230"></canvas>
+    <div class="bpm-number" id="bpmNum">--</div>
     <div class="bpm-label">BPM</div>
-    <div class="bpm-confidence" id="confidenceDisplay"></div>
-  </div>
-
-  <div class="info-row">
-    <span>偵測: <b id="infoDetected">--</b> BPM</span>
-    <span>節拍器: <b id="infoMetro">--</b> BPM</span>
-    <span>拍號: <b id="infoTime">4/4</b></span>
+    <div class="bpm-status" id="bpmStatus"></div>
   </div>
 
   <!-- Waveform -->
-  <canvas id="waveCanvas" height="80"></canvas>
+  <canvas id="waveCanvas"></canvas>
 
-  <!-- Metronome controls -->
-  <div class="metro-section">
-    <h2>節拍器設定</h2>
+  <!-- Metronome card -->
+  <div class="card">
+    <div class="card-title">節拍器</div>
+
     <div class="sync-row">
-      <label>自動同步偵測 BPM</label>
-      <div class="toggle on" id="autoSyncToggle"></div>
+      <span>自動同步偵測 BPM</span>
+      <div class="toggle on" id="syncToggle"></div>
     </div>
-    <div class="metro-row">
+
+    <div class="row">
       <label>BPM</label>
-      <div class="bpm-fine">
-        <button id="bpmMinus">−</button>
-      </div>
+      <div class="fine"><button id="bpmMinus">−</button></div>
       <input type="range" id="bpmSlider" min="40" max="240" value="120" step="1" />
-      <div class="bpm-fine">
-        <button id="bpmPlus">+</button>
-      </div>
-      <span class="val" id="bpmSliderVal">120</span>
+      <div class="fine"><button id="bpmPlus">+</button></div>
+      <span class="val" id="bpmVal">120</span>
     </div>
-    <div class="metro-row">
+
+    <div class="row">
       <label>拍號</label>
       <input type="range" id="beatsSlider" min="2" max="8" value="4" step="1" />
-      <span class="val" id="beatsSliderVal">4</span>
+      <span class="val" id="beatsVal">4/4</span>
     </div>
-    <div class="metro-row">
+
+    <div class="row">
       <label>音量</label>
       <input type="range" id="volSlider" min="0" max="100" value="70" step="1" />
-      <span class="val" id="volSliderVal">70%</span>
+      <span class="val" id="volVal">70%</span>
     </div>
-    <div class="metro-beats" id="metroBeatDots"></div>
+
+    <div class="beat-dots" id="beatDots"></div>
   </div>
 
-  <!-- Controls -->
-  <div class="controls">
-    <button class="btn-primary" id="micBtn">🎙 麥克風偵測</button>
-    <label class="file-btn">📂 上傳音樂
-      <input type="file" id="fileInput" accept="audio/*" />
-    </label>
-    <button class="btn-primary" id="metroToggleBtn">▶ 啟動節拍器</button>
-    <button class="btn-danger" id="stopBtn" disabled>⏹ 停止</button>
+  <!-- Action buttons -->
+  <div class="btn-row">
+    <button class="main btn-mic" id="micBtn">🎙 開始偵測</button>
+    <button class="main btn-metro" id="metroBtn">▶ 節拍器</button>
   </div>
 
-  <!-- Tap tempo -->
-  <button id="tapBtn">👆 點擊設定 BPM（Tap Tempo）</button>
-
-  <div id="status">點擊「麥克風偵測」或上傳音樂來開始分析節拍</div>
+  <div id="status">點擊「開始偵測」，對著麥克風播放音樂</div>
 
   <script>
-  // ─────────────────────────────────────────────
-  // State
-  // ─────────────────────────────────────────────
-  const state = {
-    audioCtx: null,
-    analyser: null,
-    sourceNode: null,
-    micStream: null,
-    isListening: false,
-    isMetroPlaying: false,
-    detectedBpm: null,
-    metroBpm: 120,
-    beats: 4,
-    volume: 0.7,
-    autoSync: true,
-    metroIntervalId: null,
-    nextBeatTime: 0,
-    currentBeat: 0,
-    animFrameId: null,
-    beatHistory: [],
-    energyHistory: [],
-    beatDetectFrameId: null,
+  // ── State ──
+  const S = {
+    ctx: null, analyser: null, micStream: null, sourceNode: null,
+    listening: false, metroOn: false, autoSync: true,
+    bpm: 120, beats: 4, vol: 0.7,
+    metroTimer: null, nextBeat: 0, beatCount: 0,
+    energyHist: [], beatIntervals: [], smoothBpms: [],
+    rafId: null, lastBeat: 0,
   };
 
-  // ─────────────────────────────────────────────
-  // Audio context lazy init
-  // ─────────────────────────────────────────────
-  function getAudioCtx() {
-    if (!state.audioCtx) {
-      state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
-    return state.audioCtx;
+  function audioCtx() {
+    if (!S.ctx) S.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (S.ctx.state === 'suspended') S.ctx.resume();
+    return S.ctx;
   }
 
-  // ─────────────────────────────────────────────
-  // UI helpers
-  // ─────────────────────────────────────────────
-  function setStatus(msg) { document.getElementById('status').textContent = msg; }
-  function setBpmDisplay(val) {
-    const el = document.getElementById('bpmDisplay');
-    el.textContent = val ? Math.round(val) : '--';
-    document.getElementById('infoDetected').textContent = val ? Math.round(val) + ' BPM' : '--';
-  }
-  function setMetroDisplay(val) {
-    document.getElementById('infoMetro').textContent = val ? Math.round(val) + ' BPM' : '--';
-  }
-  function setConfidence(txt) { document.getElementById('confidenceDisplay').textContent = txt; }
-
-  // Pulse the BPM ring on beat
-  const bpmRing = document.getElementById('bpmRing');
-  function pulseBpmRing() {
-    bpmRing.classList.add('pulse');
-    setTimeout(() => bpmRing.classList.remove('pulse'), 120);
-  }
-
-  // ─────────────────────────────────────────────
-  // Beat dots
-  // ─────────────────────────────────────────────
-  function rebuildBeatDots() {
-    const container = document.getElementById('metroBeatDots');
-    container.innerHTML = '';
-    for (let i = 0; i < state.beats; i++) {
-      const d = document.createElement('div');
-      d.className = 'beat-dot';
-      d.id = `dot-${i}`;
-      container.appendChild(d);
-    }
-    document.getElementById('infoTime').textContent = `${state.beats}/4`;
-  }
-
-  function highlightBeat(idx) {
-    for (let i = 0; i < state.beats; i++) {
-      const d = document.getElementById(`dot-${i}`);
-      if (!d) continue;
-      d.classList.remove('active', 'accent-beat');
-    }
-    const d = document.getElementById(`dot-${idx}`);
-    if (d) d.classList.add(idx === 0 ? 'accent-beat' : 'active');
-  }
-
-  // ─────────────────────────────────────────────
-  // Ring canvas animation
-  // ─────────────────────────────────────────────
-  const ringCanvas = document.getElementById('ringCanvas');
-  const ringCtx = ringCanvas.getContext('2d');
-  let ringProgress = 0;
+  // ── Ring canvas ──
+  const ring = document.getElementById('bpmRing');
+  const rc = document.getElementById('ringCanvas').getContext('2d');
 
   function drawRing(progress) {
-    const w = ringCanvas.width, h = ringCanvas.height;
-    const cx = w / 2, cy = h / 2, r = cx - 6;
-    ringCtx.clearRect(0, 0, w, h);
-
-    // Background arc
-    ringCtx.beginPath();
-    ringCtx.arc(cx, cy, r, 0, Math.PI * 2);
-    ringCtx.strokeStyle = '#22222d';
-    ringCtx.lineWidth = 5;
-    ringCtx.stroke();
-
+    const s = 230, cx = s / 2, cy = s / 2, r = cx - 7;
+    rc.clearRect(0, 0, s, s);
+    rc.beginPath(); rc.arc(cx, cy, r, 0, Math.PI * 2);
+    rc.strokeStyle = '#22222d'; rc.lineWidth = 6; rc.stroke();
     if (progress > 0) {
-      const start = -Math.PI / 2;
-      const end = start + Math.PI * 2 * progress;
-      const grad = ringCtx.createLinearGradient(0, 0, w, h);
-      grad.addColorStop(0, '#6c63ff');
-      grad.addColorStop(1, '#ff6584');
-      ringCtx.beginPath();
-      ringCtx.arc(cx, cy, r, start, end);
-      ringCtx.strokeStyle = grad;
-      ringCtx.lineWidth = 5;
-      ringCtx.lineCap = 'round';
-      ringCtx.stroke();
+      const g = rc.createLinearGradient(0, 0, s, s);
+      g.addColorStop(0, '#6c63ff'); g.addColorStop(1, '#ff6584');
+      rc.beginPath();
+      rc.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+      rc.strokeStyle = g; rc.lineWidth = 6; rc.lineCap = 'round'; rc.stroke();
     }
   }
   drawRing(0);
 
-  // ─────────────────────────────────────────────
-  // Waveform
-  // ─────────────────────────────────────────────
-  const waveCanvas = document.getElementById('waveCanvas');
-  const waveCtx = waveCanvas.getContext('2d');
+  function pulse() {
+    ring.classList.add('pulse');
+    setTimeout(() => ring.classList.remove('pulse'), 110);
+  }
+
+  // ── Waveform ──
+  const wc = document.getElementById('waveCanvas');
+  const wx = wc.getContext('2d');
 
   function resizeWave() {
-    waveCanvas.width = waveCanvas.offsetWidth * devicePixelRatio;
-    waveCanvas.height = waveCanvas.offsetHeight * devicePixelRatio;
-    waveCtx.scale(devicePixelRatio, devicePixelRatio);
+    wc.width = wc.offsetWidth * devicePixelRatio;
+    wc.height = wc.offsetHeight * devicePixelRatio;
+    wx.scale(devicePixelRatio, devicePixelRatio);
   }
   resizeWave();
   window.addEventListener('resize', resizeWave);
 
-  function drawWaveform(dataArray) {
-    const W = waveCanvas.offsetWidth, H = waveCanvas.offsetHeight;
-    waveCtx.clearRect(0, 0, W, H);
-
-    waveCtx.beginPath();
-    const sliceWidth = W / dataArray.length;
-    let x = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      const v = dataArray[i] / 128.0;
-      const y = (v * H) / 2;
-      i === 0 ? waveCtx.moveTo(x, y) : waveCtx.lineTo(x, y);
-      x += sliceWidth;
+  function drawWave(data) {
+    const W = wc.offsetWidth, H = wc.offsetHeight;
+    wx.clearRect(0, 0, W, H);
+    wx.beginPath();
+    const step = W / data.length;
+    for (let i = 0; i < data.length; i++) {
+      const y = (data[i] / 128) * H / 2;
+      i === 0 ? wx.moveTo(0, y) : wx.lineTo(i * step, y);
     }
-    waveCtx.lineTo(W, H / 2);
-
-    const grad = waveCtx.createLinearGradient(0, 0, W, 0);
-    grad.addColorStop(0, '#6c63ff');
-    grad.addColorStop(1, '#ff6584');
-    waveCtx.strokeStyle = grad;
-    waveCtx.lineWidth = 2;
-    waveCtx.stroke();
+    const g = wx.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, '#6c63ff'); g.addColorStop(1, '#ff6584');
+    wx.strokeStyle = g; wx.lineWidth = 2; wx.stroke();
   }
 
-  function drawIdleWave() {
-    const W = waveCanvas.offsetWidth, H = waveCanvas.offsetHeight;
-    waveCtx.clearRect(0, 0, W, H);
-    waveCtx.beginPath();
-    waveCtx.moveTo(0, H / 2);
-    waveCtx.lineTo(W, H / 2);
-    waveCtx.strokeStyle = '#333';
-    waveCtx.lineWidth = 1;
-    waveCtx.stroke();
+  function clearWave() {
+    const W = wc.offsetWidth, H = wc.offsetHeight;
+    wx.clearRect(0, 0, W, H);
+    wx.beginPath(); wx.moveTo(0, H / 2); wx.lineTo(W, H / 2);
+    wx.strokeStyle = '#2a2a35'; wx.lineWidth = 1; wx.stroke();
   }
-  drawIdleWave();
+  clearWave();
 
-  // ─────────────────────────────────────────────
-  // Beat detection (energy-based, real-time)
-  // ─────────────────────────────────────────────
-  const ENERGY_HISTORY_LEN = 43;   // ~1 sec at 60fps
-  const BEAT_THRESHOLD = 1.4;
-  const MIN_BEAT_INTERVAL = 250;   // ms  (max ~240 BPM)
-  const BPM_HISTORY_LEN = 8;
-
-  let lastBeatTime = 0;
-  const beatIntervals = [];
-  const smoothedBpms = [];
-
-  function detectBeat(analyser) {
-    const bufLen = analyser.frequencyBinCount;
-    const data = new Uint8Array(bufLen);
-    analyser.getByteFrequencyData(data);
-
-    // Sub-bass + bass energy (roughly 20–200 Hz)
-    const sampleRate = state.audioCtx.sampleRate;
-    const binHz = sampleRate / (bufLen * 2);
-    const loIdx = Math.floor(20 / binHz);
-    const hiIdx = Math.min(Math.floor(200 / binHz), bufLen - 1);
-
-    let energy = 0;
-    for (let i = loIdx; i <= hiIdx; i++) energy += data[i] * data[i];
-    energy /= (hiIdx - loIdx + 1);
-
-    state.energyHistory.push(energy);
-    if (state.energyHistory.length > ENERGY_HISTORY_LEN) state.energyHistory.shift();
-
-    const avg = state.energyHistory.reduce((a, b) => a + b, 0) / state.energyHistory.length;
-
-    const now = performance.now();
-    const isBeat = energy > BEAT_THRESHOLD * avg && energy > 500 && (now - lastBeatTime) > MIN_BEAT_INTERVAL;
-
-    if (isBeat) {
-      const interval = now - lastBeatTime;
-      if (lastBeatTime > 0 && interval < 2000) {
-        beatIntervals.push(interval);
-        if (beatIntervals.length > BPM_HISTORY_LEN) beatIntervals.shift();
-
-        const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
-        let bpm = 60000 / avgInterval;
-
-        // Octave correction
-        while (bpm < 60) bpm *= 2;
-        while (bpm > 200) bpm /= 2;
-
-        smoothedBpms.push(bpm);
-        if (smoothedBpms.length > 4) smoothedBpms.shift();
-        const smoothBpm = smoothedBpms.reduce((a, b) => a + b, 0) / smoothedBpms.length;
-
-        state.detectedBpm = smoothBpm;
-        setBpmDisplay(smoothBpm);
-        pulseBpmRing();
-
-        if (state.autoSync && beatIntervals.length >= 2) {
-          syncMetroToBpm(smoothBpm);
-          setConfidence(`已同步 ✓`);
-        } else if (state.autoSync) {
-          setConfidence(`收集中… ${beatIntervals.length}/2`);
-        } else {
-          setConfidence(`偵測: ${Math.round(smoothBpm)} BPM`);
-        }
-      }
-      lastBeatTime = now;
+  // ── Beat dots ──
+  function buildDots() {
+    const c = document.getElementById('beatDots');
+    c.innerHTML = '';
+    for (let i = 0; i < S.beats; i++) {
+      const d = document.createElement('div');
+      d.className = 'dot'; d.id = `d${i}`; c.appendChild(d);
     }
-
-    return data;
   }
 
-  function syncMetroToBpm(bpm) {
-    state.metroBpm = bpm;
-    document.getElementById('bpmSlider').value = Math.round(bpm);
-    document.getElementById('bpmSliderVal').textContent = Math.round(bpm);
-    setMetroDisplay(bpm);
+  function litDot(i) {
+    for (let j = 0; j < S.beats; j++) {
+      const d = document.getElementById(`d${j}`);
+      if (d) d.className = 'dot';
+    }
+    const d = document.getElementById(`d${i}`);
+    if (d) d.className = i === 0 ? 'dot on-accent' : 'dot on';
   }
 
-  // ─────────────────────────────────────────────
-  // Metronome (Web Audio scheduler)
-  // ─────────────────────────────────────────────
-  function makeClick(ctx, isAccent, vol) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+  // ── Metronome ──
+  function sched() {
+    const ctx = S.ctx;
+    const iv = 60 / S.bpm;
+    while (S.nextBeat < ctx.currentTime + 0.2) {
+      const beat = S.beatCount % S.beats;
+      const t = S.nextBeat;
 
-    osc.frequency.value = isAccent ? 1200 : 900;
-    gain.gain.setValueAtTime(vol, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.1);
-  }
-
-  function scheduleBeat() {
-    const ctx = state.audioCtx;
-    const interval = 60 / state.metroBpm;
-    const lookahead = 0.1;
-    const scheduleAhead = 0.2;
-
-    while (state.nextBeatTime < ctx.currentTime + scheduleAhead) {
-      const beat = state.currentBeat % state.beats;
-      const isAccent = beat === 0;
-
-      // Schedule click
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = isAccent ? 1200 : 900;
-      gain.gain.setValueAtTime(state.volume, state.nextBeatTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, state.nextBeatTime + 0.08);
-      osc.start(state.nextBeatTime);
-      osc.stop(state.nextBeatTime + 0.1);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = beat === 0 ? 1200 : 900;
+      gain.gain.setValueAtTime(S.vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      osc.start(t); osc.stop(t + 0.1);
 
-      // Schedule visual via timeout
-      const delay = (state.nextBeatTime - ctx.currentTime) * 1000;
-      ;(function(b) {
+      const delay = (t - ctx.currentTime) * 1000;
+      ;(function(b, p) {
         setTimeout(() => {
-          highlightBeat(b % state.beats);
-          pulseBpmRing();
-          const prog = (b % state.beats) / state.beats;
-          drawRing(prog + 1 / state.beats);
+          litDot(b % S.beats); pulse();
+          drawRing((b % S.beats + 1) / S.beats);
         }, Math.max(0, delay));
-      })(state.currentBeat);
+      })(S.beatCount, beat);
 
-      state.nextBeatTime += interval;
-      state.currentBeat++;
+      S.nextBeat += iv;
+      S.beatCount++;
     }
   }
 
-  function startMetronome() {
-    const ctx = getAudioCtx();
-    state.isMetroPlaying = true;
-    state.nextBeatTime = ctx.currentTime + 0.05;
-    state.currentBeat = 0;
-    state.metroIntervalId = setInterval(scheduleBeat, 25);
-    document.getElementById('metroToggleBtn').textContent = '⏸ 暫停節拍器';
-    setMetroDisplay(state.metroBpm);
+  function startMetro() {
+    audioCtx();
+    S.metroOn = true;
+    S.nextBeat = S.ctx.currentTime + 0.05;
+    S.beatCount = 0;
+    S.metroTimer = setInterval(sched, 25);
+    document.getElementById('metroBtn').textContent = '⏸ 節拍器';
+    updateBpmDisplay();
   }
 
-  function stopMetronome() {
-    state.isMetroPlaying = false;
-    clearInterval(state.metroIntervalId);
-    document.getElementById('metroToggleBtn').textContent = '▶ 啟動節拍器';
-    // Clear dots
-    for (let i = 0; i < state.beats; i++) {
-      const d = document.getElementById(`dot-${i}`);
-      if (d) d.classList.remove('active', 'accent-beat');
+  function stopMetro() {
+    S.metroOn = false;
+    clearInterval(S.metroTimer);
+    document.getElementById('metroBtn').textContent = '▶ 節拍器';
+    for (let i = 0; i < S.beats; i++) {
+      const d = document.getElementById(`d${i}`);
+      if (d) d.className = 'dot';
     }
     drawRing(0);
   }
 
-  // ─────────────────────────────────────────────
-  // Microphone
-  // ─────────────────────────────────────────────
-  async function startMic() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      const ctx = getAudioCtx();
-      state.micStream = stream;
-
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0.85;
-      source.connect(analyser);
-
-      state.analyser = analyser;
-      state.sourceNode = source;
-      state.isListening = true;
-
-      resetBeatDetection();
-      setStatus('🎙 正在監聽麥克風… 請播放音樂');
-      document.getElementById('micBtn').disabled = true;
-      document.getElementById('stopBtn').disabled = false;
-
-      const waveData = new Uint8Array(analyser.fftSize);
-
-      function loop() {
-        if (!state.isListening) return;
-        detectBeat(analyser);
-        analyser.getByteTimeDomainData(waveData);
-        drawWaveform(waveData);
-        state.beatDetectFrameId = requestAnimationFrame(loop);
-      }
-      loop();
-    } catch (e) {
-      setStatus('❌ 無法存取麥克風：' + e.message);
-    }
+  // ── BPM update ──
+  function updateBpm(v) {
+    S.bpm = Math.max(40, Math.min(240, Math.round(v)));
+    document.getElementById('bpmSlider').value = S.bpm;
+    document.getElementById('bpmVal').textContent = S.bpm;
   }
 
-  // ─────────────────────────────────────────────
-  // File analysis
-  // ─────────────────────────────────────────────
-  async function analyzeFile(file) {
-    setStatus('⏳ 正在解析音訊檔案…');
-    try {
-      const ctx = getAudioCtx();
-      const arrayBuf = await file.arrayBuffer();
-      const audioBuf = await ctx.decodeAudioData(arrayBuf);
-
-      setStatus('⏳ 正在分析節拍…');
-
-      const bpm = await offlineBeatDetect(audioBuf);
-      state.detectedBpm = bpm;
-      setBpmDisplay(bpm);
-      setConfidence('離線分析');
-      syncMetroToBpm(bpm);
-      setStatus(`✅ 偵測完成！BPM ≈ ${Math.round(bpm)}，節拍器已同步`);
-
-      // Play file
-      stopCurrent();
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuf;
-
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0.85;
-      source.connect(analyser);
-      analyser.connect(ctx.destination);
-      source.start();
-
-      state.sourceNode = source;
-      state.analyser = analyser;
-      state.isListening = true;
-      document.getElementById('stopBtn').disabled = false;
-
-      const waveData = new Uint8Array(analyser.fftSize);
-      function loop() {
-        if (!state.isListening) return;
-        analyser.getByteTimeDomainData(waveData);
-        drawWaveform(waveData);
-        state.beatDetectFrameId = requestAnimationFrame(loop);
-      }
-      loop();
-
-    } catch (e) {
-      setStatus('❌ 分析失敗：' + e.message);
-    }
+  function updateBpmDisplay() {
+    document.getElementById('bpmNum').textContent = S.bpm;
   }
 
-  // Offline beat detection using OfflineAudioContext
-  async function offlineBeatDetect(audioBuf) {
-    const sampleRate = audioBuf.sampleRate;
-    const duration = audioBuf.duration;
-    const frameSize = 2048;
-    const hopSize = 512;
+  // ── Beat detection ──
+  const HIST = 43, THRESH = 1.4, MIN_IV = 260;
 
-    // Downsample via OfflineAudioContext for speed
-    const offlineSr = 22050;
-    const offlineFrames = Math.ceil(duration * offlineSr);
-    const offlineCtx = new OfflineAudioContext(1, offlineFrames, offlineSr);
-    const src = offlineCtx.createBufferSource();
-    src.buffer = audioBuf;
+  function detect(analyser) {
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(buf);
 
-    // Low-pass to bass region
-    const lp = offlineCtx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 200;
+    const sr = S.ctx.sampleRate;
+    const binHz = sr / (buf.length * 2);
+    const lo = Math.floor(20 / binHz);
+    const hi = Math.min(Math.floor(200 / binHz), buf.length - 1);
 
-    src.connect(lp);
-    lp.connect(offlineCtx.destination);
-    src.start(0);
+    let e = 0;
+    for (let i = lo; i <= hi; i++) e += buf[i] * buf[i];
+    e /= (hi - lo + 1);
 
-    const rendered = await offlineCtx.startRendering();
-    const data = rendered.getChannelData(0);
+    S.energyHist.push(e);
+    if (S.energyHist.length > HIST) S.energyHist.shift();
+    const avg = S.energyHist.reduce((a, b) => a + b, 0) / S.energyHist.length;
 
-    // Energy envelope
-    const energies = [];
-    for (let i = 0; i < data.length - frameSize; i += hopSize) {
-      let e = 0;
-      for (let j = 0; j < frameSize; j++) e += data[i + j] ** 2;
-      energies.push(e / frameSize);
-    }
+    const now = performance.now();
+    if (e > THRESH * avg && e > 500 && now - S.lastBeat > MIN_IV) {
+      const iv = now - S.lastBeat;
+      if (S.lastBeat > 0 && iv < 2000) {
+        S.beatIntervals.push(iv);
+        if (S.beatIntervals.length > 8) S.beatIntervals.shift();
 
-    // Peak picking
-    const beats = [];
-    const win = Math.floor(offlineSr / hopSize); // 1-sec window
-    for (let i = win; i < energies.length - win; i++) {
-      const local = energies.slice(i - win, i + win);
-      const avg = local.reduce((a, b) => a + b, 0) / local.length;
-      if (energies[i] > 1.5 * avg && energies[i] > 1e-5) {
-        const timeMs = (i * hopSize / offlineSr) * 1000;
-        if (beats.length === 0 || timeMs - beats[beats.length - 1] > 250) {
-          beats.push(timeMs);
+        const avgIv = S.beatIntervals.reduce((a, b) => a + b, 0) / S.beatIntervals.length;
+        let bpm = 60000 / avgIv;
+        while (bpm < 60) bpm *= 2;
+        while (bpm > 200) bpm /= 2;
+
+        S.smoothBpms.push(bpm);
+        if (S.smoothBpms.length > 4) S.smoothBpms.shift();
+        const smooth = S.smoothBpms.reduce((a, b) => a + b, 0) / S.smoothBpms.length;
+
+        document.getElementById('bpmNum').textContent = Math.round(smooth);
+        pulse();
+
+        if (S.autoSync && S.beatIntervals.length >= 2) {
+          updateBpm(smooth);
+          document.getElementById('bpmStatus').textContent = '已同步 ✓';
+        } else if (S.autoSync) {
+          document.getElementById('bpmStatus').textContent = `收集中 ${S.beatIntervals.length}/2`;
         }
       }
+      S.lastBeat = now;
     }
-
-    if (beats.length < 4) return 120; // fallback
-
-    // Compute intervals
-    const intervals = [];
-    for (let i = 1; i < beats.length; i++) intervals.push(beats[i] - beats[i - 1]);
-
-    // Histogram over BPM values
-    const histogram = {};
-    for (const iv of intervals) {
-      let bpm = 60000 / iv;
-      while (bpm < 60) bpm *= 2;
-      while (bpm > 200) bpm /= 2;
-      const rounded = Math.round(bpm);
-      histogram[rounded] = (histogram[rounded] || 0) + 1;
-    }
-
-    // Find peak in histogram with smoothing
-    const keys = Object.keys(histogram).map(Number).sort((a, b) => a - b);
-    let bestBpm = 120, bestCount = 0;
-    for (const k of keys) {
-      // sum nearby
-      let count = 0;
-      for (let d = -3; d <= 3; d++) count += histogram[k + d] || 0;
-      if (count > bestCount) { bestCount = count; bestBpm = k; }
-    }
-
-    return bestBpm;
   }
 
-  // ─────────────────────────────────────────────
-  // Reset / stop
-  // ─────────────────────────────────────────────
-  function resetBeatDetection() {
-    lastBeatTime = 0;
-    beatIntervals.length = 0;
-    smoothedBpms.length = 0;
-    state.energyHistory.length = 0;
-    state.beatHistory.length = 0;
+  // ── Mic ──
+  async function startMic() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioCtx();
+      S.micStream = stream;
+      const src = S.ctx.createMediaStreamSource(stream);
+      const an = S.ctx.createAnalyser();
+      an.fftSize = 2048; an.smoothingTimeConstant = 0.85;
+      src.connect(an);
+      S.analyser = an; S.sourceNode = src; S.listening = true;
+
+      S.energyHist.length = 0; S.beatIntervals.length = 0;
+      S.smoothBpms.length = 0; S.lastBeat = 0;
+
+      document.getElementById('micBtn').textContent = '⏹ 停止偵測';
+      document.getElementById('micBtn').classList.add('active');
+      document.getElementById('status').textContent = '🎙 正在偵測，請播放音樂…';
+      document.getElementById('bpmStatus').textContent = '';
+
+      const td = new Uint8Array(an.fftSize);
+      function loop() {
+        if (!S.listening) return;
+        detect(an);
+        an.getByteTimeDomainData(td);
+        drawWave(td);
+        S.rafId = requestAnimationFrame(loop);
+      }
+      loop();
+    } catch (err) {
+      document.getElementById('status').textContent = '❌ 無法使用麥克風：' + err.message;
+    }
   }
 
-  function stopCurrent() {
-    state.isListening = false;
-    cancelAnimationFrame(state.beatDetectFrameId);
-    if (state.sourceNode) {
-      try { state.sourceNode.stop(); } catch (_) {}
-      state.sourceNode = null;
-    }
-    if (state.micStream) {
-      state.micStream.getTracks().forEach(t => t.stop());
-      state.micStream = null;
-    }
-    state.analyser = null;
-    document.getElementById('micBtn').disabled = false;
-    document.getElementById('stopBtn').disabled = true;
-    drawIdleWave();
+  function stopMic() {
+    S.listening = false;
+    cancelAnimationFrame(S.rafId);
+    if (S.micStream) { S.micStream.getTracks().forEach(t => t.stop()); S.micStream = null; }
+    S.analyser = null; S.sourceNode = null;
+    document.getElementById('micBtn').textContent = '🎙 開始偵測';
+    document.getElementById('micBtn').classList.remove('active');
+    document.getElementById('status').textContent = '點擊「開始偵測」，對著麥克風播放音樂';
+    document.getElementById('bpmStatus').textContent = '';
+    clearWave();
   }
 
-  // ─────────────────────────────────────────────
-  // Tap tempo
-  // ─────────────────────────────────────────────
-  const tapTimes = [];
-  let tapTimeoutId = null;
-
-  document.getElementById('tapBtn').addEventListener('click', () => {
-    const now = performance.now();
-    tapTimes.push(now);
-
-    clearTimeout(tapTimeoutId);
-    tapTimeoutId = setTimeout(() => tapTimes.length = 0, 3000);
-
-    if (tapTimes.length > 1) {
-      const intervals = [];
-      for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i - 1]);
-      const avg = intervals.slice(-4).reduce((a, b) => a + b, 0) / Math.min(intervals.length, 4);
-      const bpm = Math.round(60000 / avg);
-      syncMetroToBpm(Math.max(40, Math.min(240, bpm)));
-    }
-
-    // Visual feedback
-    document.getElementById('tapBtn').style.borderColor = 'var(--accent)';
-    setTimeout(() => document.getElementById('tapBtn').style.borderColor = '', 200);
+  // ── Events ──
+  document.getElementById('micBtn').addEventListener('click', () => {
+    if (S.listening) stopMic(); else startMic();
   });
 
-  // ─────────────────────────────────────────────
-  // Slider bindings
-  // ─────────────────────────────────────────────
-  function updateBpm(val) {
-    const bpm = Math.max(40, Math.min(240, Math.round(val)));
-    state.metroBpm = bpm;
-    document.getElementById('bpmSlider').value = bpm;
-    document.getElementById('bpmSliderVal').textContent = bpm;
-    setMetroDisplay(bpm);
-  }
+  document.getElementById('metroBtn').addEventListener('click', () => {
+    audioCtx();
+    if (S.metroOn) stopMetro(); else startMetro();
+  });
+
+  document.getElementById('syncToggle').addEventListener('click', function () {
+    S.autoSync = !S.autoSync;
+    this.classList.toggle('on', S.autoSync);
+    document.getElementById('status').textContent = S.autoSync
+      ? '自動同步已開啟' : '自動同步已關閉，請手動調整 BPM';
+  });
 
   document.getElementById('bpmSlider').addEventListener('input', function () {
     updateBpm(+this.value);
+    if (S.metroOn) updateBpmDisplay();
   });
 
-  document.getElementById('bpmMinus').addEventListener('click', () => updateBpm(state.metroBpm - 1));
-  document.getElementById('bpmPlus').addEventListener('click', () => updateBpm(state.metroBpm + 1));
-
-  document.getElementById('autoSyncToggle').addEventListener('click', function () {
-    state.autoSync = !state.autoSync;
-    this.classList.toggle('on', state.autoSync);
-    setStatus(state.autoSync ? '自動同步已開啟 — 偵測到節拍會自動更新節拍器' : '自動同步已關閉 — 請手動調整 BPM');
-  });
+  document.getElementById('bpmMinus').addEventListener('click', () => { updateBpm(S.bpm - 1); if (S.metroOn) updateBpmDisplay(); });
+  document.getElementById('bpmPlus').addEventListener('click', () => { updateBpm(S.bpm + 1); if (S.metroOn) updateBpmDisplay(); });
 
   document.getElementById('beatsSlider').addEventListener('input', function () {
-    state.beats = +this.value;
-    document.getElementById('beatsSliderVal').textContent = this.value;
-    document.getElementById('infoTime').textContent = `${state.beats}/4`;
-    rebuildBeatDots();
-    if (state.isMetroPlaying) {
-      stopMetronome();
-      startMetronome();
-    }
+    S.beats = +this.value;
+    document.getElementById('beatsVal').textContent = S.beats + '/4';
+    buildDots();
+    if (S.metroOn) { stopMetro(); startMetro(); }
   });
 
   document.getElementById('volSlider').addEventListener('input', function () {
-    state.volume = +this.value / 100;
-    document.getElementById('volSliderVal').textContent = this.value + '%';
+    S.vol = +this.value / 100;
+    document.getElementById('volVal').textContent = this.value + '%';
   });
 
-  // ─────────────────────────────────────────────
-  // Button bindings
-  // ─────────────────────────────────────────────
-  document.getElementById('micBtn').addEventListener('click', () => {
-    stopCurrent();
-    resetBeatDetection();
-    setBpmDisplay(null);
-    setConfidence('');
-    startMic();
-  });
-
-  document.getElementById('fileInput').addEventListener('change', function () {
-    if (!this.files[0]) return;
-    stopCurrent();
-    resetBeatDetection();
-    setBpmDisplay(null);
-    setConfidence('');
-    analyzeFile(this.files[0]);
-    this.value = '';
-  });
-
-  document.getElementById('metroToggleBtn').addEventListener('click', () => {
-    getAudioCtx();
-    if (state.isMetroPlaying) stopMetronome();
-    else startMetronome();
-  });
-
-  document.getElementById('stopBtn').addEventListener('click', () => {
-    stopCurrent();
-    setStatus('已停止');
-  });
-
-  // ─────────────────────────────────────────────
-  // Init
-  // ─────────────────────────────────────────────
-  rebuildBeatDots();
-  setMetroDisplay(state.metroBpm);
+  // ── Init ──
+  buildDots();
   </script>
 </body>
 </html>
