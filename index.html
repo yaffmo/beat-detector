@@ -198,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.8</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.9</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -653,9 +653,18 @@
         <button class="result-pick">使用</button>
       `;
       card.querySelector('button').addEventListener('click', () => {
-        container.style.display = 'none';
+        // 標記選中，其他變暗
+        container.querySelectorAll('.result-card').forEach(c => {
+          c.style.opacity = '0.35';
+          c.style.borderColor = 'transparent';
+        });
+        card.style.opacity = '1';
+        card.style.borderColor = 'var(--accent)';
+        card.querySelector('button').textContent = '✓ 已選';
+
         updateBpm(m.bpm);
         document.getElementById('bpmNum').textContent = m.bpm;
+        if (S.metroOn) stopMetro();
         startMetro();
         document.getElementById('status').textContent = `節拍器運行中，BPM = ${m.bpm}（${m.label}）`;
         window.scrollTo({ top: 0, behavior: 'smooth' });
