@@ -172,7 +172,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.4</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.5</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -557,7 +557,12 @@
 
   // ── Events ──
   document.getElementById('micBtn').addEventListener('click', () => {
-    if (S.listening) stopMic(); else startMic();
+    if (S.listening) {
+      stopMic();
+    } else {
+      if (S.metroOn) stopMetro();
+      startMic();
+    }
   });
 
   document.getElementById('metroBtn').addEventListener('click', () => {
