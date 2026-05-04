@@ -198,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.1</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v2.2</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -447,11 +447,20 @@
     for (let i = kickLo;  i <= kickHi;  i++) flux += Math.max(0, buf[i] - prevBuf[i]);
     for (let i = snareLo; i <= snareHi; i++) flux += Math.max(0, buf[i] - prevBuf[i]);
 
+    // 能量銓重：鼓聲頻段的 RMS 能量
+    let energy = 0, energyCount = 0;
+    for (let i = kickLo;  i <= kickHi;  i++) { energy += buf[i] * buf[i]; energyCount++; }
+    for (let i = snareLo; i <= snareHi; i++) { energy += buf[i] * buf[i]; energyCount++; }
+    const rms = Math.sqrt(energy / energyCount);
+
+    // 加權 onset = flux × RMS（鼓聲兩者都強，雜音兩者都弱）
+    const weightedFlux = flux * rms;
+
     prevBuf.set(buf);
 
-    // 收集連續 flux 供自相關使用
+    // 收集連續加權 flux 供自相關使用
     const now2 = performance.now();
-    S.onsetStrengths.push(flux);
+    S.onsetStrengths.push(weightedFlux);
     S.onsetTimes.push(now2);
 
     fluxHist.push(flux);
