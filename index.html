@@ -227,6 +227,8 @@
 
   <script>
   // ── State ──
+  const MIC_TIMEOUT = 10; // seconds
+
   const S = {
     ctx: null, analyser: null, micStream: null, sourceNode: null,
     listening: false, metroOn: false, autoSync: true,
@@ -234,6 +236,7 @@
     metroTimer: null, nextBeat: 0, beatCount: 0,
     energyHist: [], beatIntervals: [], smoothBpms: [],
     rafId: null, lastBeat: 0,
+    countdownTimer: null, secondsLeft: MIC_TIMEOUT,
   };
 
   function audioCtx() {
@@ -447,10 +450,23 @@
       S.energyHist.length = 0; S.beatIntervals.length = 0;
       S.smoothBpms.length = 0; S.lastBeat = 0;
 
-      document.getElementById('micBtn').textContent = '⏹ 停止偵測';
       document.getElementById('micBtn').classList.add('active');
-      document.getElementById('status').textContent = '🎙 正在偵測，請播放音樂…';
       document.getElementById('bpmStatus').textContent = '';
+
+      // 倒數計時
+      S.secondsLeft = MIC_TIMEOUT;
+      updateMicBtn();
+      S.countdownTimer = setInterval(() => {
+        S.secondsLeft--;
+        updateMicBtn();
+        if (S.secondsLeft <= 0) {
+          const success = S.beatIntervals.length >= 2;
+          stopMic();
+          document.getElementById('status').textContent = success
+            ? '✅ 偵測完成，節拍器已同步'
+            : '❌ 偵測不到節拍，請再試一次';
+        }
+      }, 1000);
 
       const td = new Uint8Array(an.fftSize);
       function loop() {
@@ -466,15 +482,19 @@
     }
   }
 
+  function updateMicBtn() {
+    document.getElementById('micBtn').textContent = `⏹ 偵測中 ${S.secondsLeft}s`;
+    document.getElementById('status').textContent = `🎙 正在偵測，請播放音樂… (${S.secondsLeft}s)`;
+  }
+
   function stopMic() {
     S.listening = false;
     cancelAnimationFrame(S.rafId);
+    clearInterval(S.countdownTimer);
     if (S.micStream) { S.micStream.getTracks().forEach(t => t.stop()); S.micStream = null; }
     S.analyser = null; S.sourceNode = null;
-    document.getElementById('micBtn').textContent = '🎙 開始偵測';
+    document.getElementById('micBtn').textContent = '🎙 重新偵測';
     document.getElementById('micBtn').classList.remove('active');
-    document.getElementById('status').textContent = '點擊「開始偵測」，對著麥克風播放音樂';
-    document.getElementById('bpmStatus').textContent = '';
     clearWave();
   }
 
