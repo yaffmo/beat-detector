@@ -383,8 +383,13 @@
     document.getElementById('bpmNum').textContent = S.bpm;
   }
 
-  // ── Beat detection ──
-  const HIST = 43, THRESH = 1.55, MIN_IV = 300;
+  // ── Beat detection（Spectral Flux onset detection）──
+  const MIN_IV = 300; // ms，最短拍間距（對應最快 200 BPM）
+  const FLUX_HIST = 30;
+  const FLUX_THRESH_MULT = 1.5; // 超過近期平均 flux 幾倍才算 onset
+
+  let prevBuf = null;
+  const fluxHist = [];
 
   function median(arr) {
     const s = [...arr].sort((a, b) => a - b);
@@ -396,38 +401,45 @@
     const buf = new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(buf);
 
+    if (!prevBuf) { prevBuf = new Uint8Array(buf); return; }
+
     const sr = S.ctx.sampleRate;
     const binHz = sr / (buf.length * 2);
-    // 60–150Hz：踢鼓主體，遠離人聲頻段
-    const lo = Math.floor(60 / binHz);
-    const hi = Math.min(Math.floor(150 / binHz), buf.length - 1);
 
-    let e = 0;
-    for (let i = lo; i <= hi; i++) e += buf[i] * buf[i];
-    e /= (hi - lo + 1);
+    // 鼓聲頻段：kick 60–120Hz + snare 150–300Hz
+    const kickLo  = Math.floor(60  / binHz);
+    const kickHi  = Math.floor(120 / binHz);
+    const snareLo = Math.floor(150 / binHz);
+    const snareHi = Math.min(Math.floor(300 / binHz), buf.length - 1);
 
-    S.energyHist.push(e);
-    if (S.energyHist.length > HIST) S.energyHist.shift();
-    const avg = S.energyHist.reduce((a, b) => a + b, 0) / S.energyHist.length;
+    // Spectral flux：只計算正向增量（攻擊瞬間）
+    let flux = 0;
+    for (let i = kickLo;  i <= kickHi;  i++) flux += Math.max(0, buf[i] - prevBuf[i]);
+    for (let i = snareLo; i <= snareHi; i++) flux += Math.max(0, buf[i] - prevBuf[i]);
 
+    prevBuf.set(buf);
+
+    fluxHist.push(flux);
+    if (fluxHist.length > FLUX_HIST) fluxHist.shift();
+
+    const avgFlux = fluxHist.reduce((a, b) => a + b, 0) / fluxHist.length;
     const now = performance.now();
-    if (e > THRESH * avg && e > 800 && now - S.lastBeat > MIN_IV) {
+
+    if (flux > FLUX_THRESH_MULT * avgFlux && flux > 50 && now - S.lastBeat > MIN_IV) {
       const iv = now - S.lastBeat;
       if (S.lastBeat > 0 && iv < 2000) {
         S.beatIntervals.push(iv);
         if (S.beatIntervals.length > 12) S.beatIntervals.shift();
 
-        // 用中位數取代平均，減少異常值影響
         const medIv = median(S.beatIntervals);
         let bpm = 60000 / medIv;
-        while (bpm < 60) bpm *= 2;
+        while (bpm < 60)  bpm *= 2;
         while (bpm > 200) bpm /= 2;
 
-        // 穩定鎖定：與目前 BPM 相差超過 10% 才允許更新
-        const diff = Math.abs(bpm - S.bpm) / S.bpm;
-        if (S.beatIntervals.length < 3 || diff < 0.10) {
+        // 穩定鎖定：與目前值相差超過 10% 才允許更新候選池
+        if (S.beatIntervals.length < 4 || Math.abs(bpm - S.bpm) / S.bpm < 0.10) {
           S.smoothBpms.push(bpm);
-          if (S.smoothBpms.length > 6) S.smoothBpms.shift();
+          if (S.smoothBpms.length > 8) S.smoothBpms.shift();
         }
 
         if (S.smoothBpms.length === 0) return;
@@ -436,12 +448,12 @@
         document.getElementById('bpmNum').textContent = Math.round(stable);
         pulse();
 
-        if (S.autoSync && S.beatIntervals.length >= 3) {
+        if (S.autoSync && S.beatIntervals.length >= 4) {
           updateBpm(stable);
           document.getElementById('bpmStatus').textContent = '已同步 ✓';
           if (!S.metroOn) startMetro();
         } else if (S.autoSync) {
-          document.getElementById('bpmStatus').textContent = `收集中 ${S.beatIntervals.length}/3`;
+          document.getElementById('bpmStatus').textContent = `收集中 ${S.beatIntervals.length}/4`;
         }
       }
       S.lastBeat = now;
@@ -462,6 +474,7 @@
 
       S.energyHist.length = 0; S.beatIntervals.length = 0;
       S.smoothBpms.length = 0; S.lastBeat = 0;
+      prevBuf = null; fluxHist.length = 0;
 
       document.getElementById('micBtn').classList.add('active');
       document.getElementById('bpmStatus').textContent = '';
