@@ -172,7 +172,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.5</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.6</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -450,7 +450,7 @@
         pulse();
 
         document.getElementById('bpmNum').textContent = Math.round(stable);
-        document.getElementById('bpmStatus').textContent = `收集中… ${S.beatIntervals.length} 拍`;
+        document.getElementById('bpmStatus').textContent = `收集中… ${S.beatTimes.length} 拍`;
       }
       S.beatTimes.push(now);
       S.lastBeat = now;
