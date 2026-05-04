@@ -448,15 +448,14 @@
         document.getElementById('bpmNum').textContent = Math.round(stable);
         pulse();
 
-        const collected = S.beatIntervals.length;
-        document.getElementById('bpmStatus').textContent = `收集中 ${collected}/8`;
-
-        if (collected >= 8) {
+        if (S.beatIntervals.length >= 2) {
           updateBpm(stable);
           if (!S.metroOn) startMetro();
           stopMic();
           document.getElementById('status').textContent = '✅ 偵測完成，節拍器已同步';
           document.getElementById('bpmStatus').textContent = '已同步 ✓';
+        } else {
+          document.getElementById('bpmStatus').textContent = `收集中…`;
         }
       }
       S.lastBeat = now;
