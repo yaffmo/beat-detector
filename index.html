@@ -163,6 +163,32 @@
     }
     .btn-metro:hover:not(:disabled) { box-shadow: 0 6px 24px rgba(42,157,143,.5); }
 
+    /* ── Results ── */
+    .results {
+      width: 100%; max-width: 520px;
+      display: flex; flex-direction: column; gap: .75rem;
+    }
+    .result-card {
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+      border: 2px solid transparent;
+      transition: border-color .15s;
+    }
+    .result-card:hover { border-color: var(--accent); }
+    .result-info { display: flex; flex-direction: column; gap: .2rem; }
+    .result-method { font-size: .75rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+    .result-bpm { font-size: 2rem; font-weight: 800; }
+    .result-pick {
+      padding: .5rem 1.1rem;
+      border-radius: 10px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #9b8cff);
+      color: #fff; font-weight: 700; font-size: .88rem;
+      transition: opacity .15s;
+    }
+    .result-pick:hover { opacity: .85; }
+
     /* ── Status ── */
     #status {
       font-size: .82rem; color: var(--muted);
@@ -172,7 +198,7 @@
 </head>
 <body>
 
-  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.6</span></h1>
+  <h1>節拍偵測器 <span style="font-size:.5em;color:#fff;font-weight:400">v1.7</span></h1>
 
   <!-- BPM ring -->
   <div class="bpm-ring" id="bpmRing">
@@ -223,6 +249,8 @@
     <button class="main btn-metro" id="metroBtn">▶ 節拍器</button>
   </div>
 
+  <div class="results" id="results" style="display:none"></div>
+
   <div id="status">點擊「開始偵測」，對著麥克風播放音樂</div>
 
   <script>
@@ -236,6 +264,7 @@
     metroTimer: null, nextBeat: 0, beatCount: 0,
     energyHist: [], beatIntervals: [], smoothBpms: [],
     beatTimes: [],
+    onsetStrengths: [], onsetTimes: [],
     rafId: null, lastBeat: 0,
     countdownTimer: null, secondsLeft: MIC_TIMEOUT,
   };
@@ -420,6 +449,11 @@
 
     prevBuf.set(buf);
 
+    // 收集連續 flux 供自相關使用
+    const now2 = performance.now();
+    S.onsetStrengths.push(flux);
+    S.onsetTimes.push(now2);
+
     fluxHist.push(flux);
     if (fluxHist.length > FLUX_HIST) fluxHist.shift();
 
@@ -455,6 +489,42 @@
       S.beatTimes.push(now);
       S.lastBeat = now;
     }
+  }
+
+  function autocorrBpm(strengths, times) {
+    const n = strengths.length;
+    if (n < 200) return null;
+
+    const totalMs = times[n - 1] - times[0];
+    const fps = (n - 1) / (totalMs / 1000);
+
+    const mean = strengths.reduce((a, b) => a + b, 0) / n;
+    const s = strengths.map(v => v - mean);
+
+    const minLag = Math.max(1, Math.floor(fps * 60 / 220));
+    const maxLag = Math.min(Math.ceil(fps * 60 / 55), n - 1);
+
+    let bestCorr = -Infinity, bestLag = minLag;
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      let sum = 0;
+      for (let i = 0; i < n - lag; i++) sum += s[i] * s[i + lag];
+      const corr = sum / (n - lag);
+      if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+    }
+
+    // 檢查半拍距（即雙倍 BPM）是否相關性更強，避免算到半速
+    const halfLag = Math.round(bestLag / 2);
+    if (halfLag >= minLag) {
+      let halfSum = 0;
+      for (let i = 0; i < n - halfLag; i++) halfSum += s[i] * s[i + halfLag];
+      const halfCorr = halfSum / (n - halfLag);
+      if (halfCorr > bestCorr * 0.85) bestLag = halfLag;
+    }
+
+    let bpm = 60000 / ((bestLag / fps) * 1000);
+    while (bpm < 60)  bpm *= 2;
+    while (bpm > 200) bpm /= 2;
+    return Math.round(bpm);
   }
 
   function computeBestBpm(times) {
@@ -494,7 +564,9 @@
       S.analyser = an; S.sourceNode = src; S.listening = true;
 
       S.energyHist.length = 0; S.beatIntervals.length = 0;
-      S.smoothBpms.length = 0; S.beatTimes.length = 0; S.lastBeat = 0;
+      S.smoothBpms.length = 0; S.beatTimes.length = 0;
+      S.onsetStrengths.length = 0; S.onsetTimes.length = 0;
+      S.lastBeat = 0;
       prevBuf = null; fluxHist.length = 0;
 
       document.getElementById('micBtn').classList.add('active');
@@ -507,20 +579,22 @@
         S.secondsLeft--;
         updateMicBtn();
         if (S.secondsLeft <= 0) {
-          if (S.beatTimes.length >= 3) {
-            const finalBpm = computeBestBpm(S.beatTimes);
-            updateBpm(finalBpm);
-            document.getElementById('bpmNum').textContent = Math.round(finalBpm);
-            stopMic();
-            document.getElementById('bpmStatus').textContent = '';
-            document.getElementById('status').textContent = `✅ 偵測完成，BPM = ${Math.round(finalBpm)}，節拍器啟動中…`;
-            setTimeout(() => {
-              startMetro();
-              document.getElementById('status').textContent = `節拍器運行中，BPM = ${Math.round(finalBpm)}`;
-            }, 800);
+          const bpm1 = S.beatTimes.length >= 3 ? computeBestBpm(S.beatTimes) : null;
+          const bpm2 = autocorrBpm(S.onsetStrengths, S.onsetTimes);
+          const bpm3 = (() => {
+            if (S.beatIntervals.length < 2) return null;
+            let b = 60000 / median(S.beatIntervals);
+            while (b < 60) b *= 2; while (b > 200) b /= 2;
+            return Math.round(b);
+          })();
+
+          stopMic();
+          document.getElementById('bpmStatus').textContent = '';
+
+          if (!bpm1 && !bpm2 && !bpm3) {
+            document.getElementById('status').textContent = '❌ 偵測不到節拍，請再試一次';
           } else {
-            stopMic();
-            document.getElementById('status').textContent = `❌ 偵測不到節拍（${S.beatTimes.length} 拍），請再試一次`;
+            showResults(bpm1, bpm2, bpm3);
           }
         }
       }, 1000);
@@ -553,6 +627,40 @@
     document.getElementById('micBtn').textContent = '🎙 重新偵測';
     document.getElementById('micBtn').classList.remove('active');
     clearWave();
+  }
+
+  function showResults(bpm1, bpm2, bpm3) {
+    const container = document.getElementById('results');
+    container.innerHTML = '';
+    container.style.display = 'flex';
+    document.getElementById('status').textContent = '✅ 偵測完成，選擇要使用的 BPM：';
+
+    const methods = [
+      { label: '全配對投票', bpm: bpm1 },
+      { label: '自相關',     bpm: bpm2 },
+      { label: '相鄰中位數', bpm: bpm3 },
+    ];
+
+    for (const m of methods) {
+      if (!m.bpm) continue;
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.innerHTML = `
+        <div class="result-info">
+          <span class="result-method">${m.label}</span>
+          <span class="result-bpm">${m.bpm} <span style="font-size:.9rem;font-weight:400;color:var(--muted)">BPM</span></span>
+        </div>
+        <button class="result-pick">使用</button>
+      `;
+      card.querySelector('button').addEventListener('click', () => {
+        container.style.display = 'none';
+        updateBpm(m.bpm);
+        document.getElementById('bpmNum').textContent = m.bpm;
+        startMetro();
+        document.getElementById('status').textContent = `節拍器運行中，BPM = ${m.bpm}（${m.label}）`;
+      });
+      container.appendChild(card);
+    }
   }
 
   // ── Events ──
